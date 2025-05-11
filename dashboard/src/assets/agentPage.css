@@ -1,0 +1,23 @@
+/* src/assets/agentsPage.css */
+.MuiDataGrid-root .MuiDataGrid-cell {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+  }
+  
+  .MuiDataGrid-root .MuiDataGrid-columnHeaderTitle {
+    font-weight: 600;
+  }
+  
+  /* Smooth transitions for form collapse */
+  .MuiCollapse-root {
+    transition: height 300ms ease-in-out;
+  }
+  
+  /* Custom card styling for features */
+  .MuiCard-root.feature-card {
+    transition: box-shadow 0.2s ease;
+  }
+  
+  .MuiCard-root.feature-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }

@@ -1,0 +1,130 @@
+/* Existing styles for dashboard, sidebar, main-content */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.dashboard {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 250px;
+  background: #f4f4f4;
+  padding: 20px;
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar h2 {
+  margin-top: 0;
+  color: #333;
+}
+
+.sidebar nav ul {
+  list-style: none;
+  padding: 0;
+}
+
+.sidebar nav ul li {
+  margin: 10px 0;
+}
+
+.sidebar nav ul li a {
+  text-decoration: none;
+  color: #007bff;
+  font-weight: bold;
+}
+
+.sidebar nav ul li a:hover {
+  color: #0056b3;
+}
+
+.main-content {
+  flex: 1;
+  padding: 20px;
+  background: #fff;
+  width: 1500px;
+}
+
+/* Styles for AgentsPage (existing) */
+.agents-page, .agent-chains-page {
+  width: 100%;
+  margin: 0 auto;
+}
+
+.agent-form, .chain-form {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+.agent-form label, .chain-form label {
+  display: block;
+  margin: 10px 0 5px;
+}
+
+.agent-form input, .agent-form select,
+.chain-form input, .chain-form select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.feature-form, .agent-sequence-form {
+  border: 1px solid #ddd;
+  padding: 10px;
+  margin: 10px 0;
+  border-radius: 4px;
+}
+
+.feature-form button, .agent-sequence-form button {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.feature-form button:hover, .agent-sequence-form button:hover {
+  background: #c82333;
+}
+
+.agents-page button, .agent-chains-page button {
+  margin: 10px 5px;
+  padding: 10px 20px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.agents-page button:hover, .agent-chains-page button:hover {
+  background: #0056b3;
+}
+
+.agents-table, .chains-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+.agents-table th, .agents-table td,
+.chains-table th, .chains-table td {
+  border: 1px solid #ddd;
+  padding: 10px;
+  text-align: left;
+}
+
+.agents-table th, .chains-table th {
+  background: #007bff;
+  color: white;
+}
+
+.agents-table td div, .chains-table td div {
+  margin: 5px 0;
+}
