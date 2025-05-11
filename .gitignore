@@ -5,3 +5,7 @@ package.json
 proxy/
 index.html
 docs/
+dashboard/public/onnx_intent_model/model.onnx
+backend/fine_tuned_model/model.safetensors
+*.onnx
+*.safetensors
