@@ -3,26 +3,23 @@ import axios from 'axios';
 import {
   Box,
   Button,
-  TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Card,
-  CardContent,
-  Typography,
+  Field,
+  Fieldset,
+  Input,
+  NativeSelect,
+  Stack,
+  Text,
+  Heading,
   Alert,
-  CircularProgress,
+  Icon,
   IconButton,
-  Collapse,
+  Collapsible,
   Grid,
   Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-} from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
-import { Add, Delete, Edit, Close, Save } from '@mui/icons-material';
+  Table,
+  For,
+} from '@chakra-ui/react';
+import { FaPlus, FaTrash, FaEdit, FaCheck, FaTimes, FaExclamationCircle, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import '../assets/agentPage.css';
 
 const AgentsPage = () => {
@@ -36,10 +33,10 @@ const AgentsPage = () => {
     intent: '',
     features: [{ route: '', method: 'GET', parameters: '', description: '' }],
   });
-  const [editAgentId, setEditAgentId] = useState(null); // Track agent being edited
+  const [editAgentId, setEditAgentId] = useState(null);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, agentId: null });
+  const [showSessionInfo, setShowSessionInfo] = useState(false);
 
-  // Fetch agents
   useEffect(() => {
     const fetchAgents = async () => {
       try {
@@ -60,7 +57,6 @@ const AgentsPage = () => {
     fetchAgents();
   }, []);
 
-  // Add new feature
   const addFeature = () => {
     setAgent({
       ...agent,
@@ -68,14 +64,12 @@ const AgentsPage = () => {
     });
   };
 
-  // Update feature
   const updateFeature = (index, field, value) => {
     const newFeatures = [...agent.features];
     newFeatures[index][field] = value;
     setAgent({ ...agent, features: newFeatures });
   };
 
-  // Remove feature
   const removeFeature = (index) => {
     setAgent({
       ...agent,
@@ -83,18 +77,16 @@ const AgentsPage = () => {
     });
   };
 
-  // Validate form
   const isFormValid = () => {
     return (
       agent.name.trim() &&
       agent.intent.trim() &&
       agent.features.every(
-        (f) => f.route.trim() && f.method && f.description.trim() && (f.parameters.trim() || true)
+        (f) => f.route.trim() && f.method && f.description.trim()
       )
     );
   };
 
-  // Save or update agent
   const saveAgent = async () => {
     if (!isFormValid()) {
       setError('Please fill all required fields.');
@@ -109,10 +101,8 @@ const AgentsPage = () => {
         })),
       };
       if (editAgentId) {
-        // Update existing agent (assuming backend supports updates via POST with agentId)
         await axios.post('http://localhost:8000/agents', { ...payload, agentId: editAgentId });
       } else {
-        // Create new agent
         await axios.post('http://localhost:8000/agents', payload);
       }
       setError('');
@@ -124,7 +114,6 @@ const AgentsPage = () => {
       });
       setShowForm(false);
       setEditAgentId(null);
-      // Refresh agents
       const response = await axios.get('http://localhost:8000/agents', {
         params: { websiteId: 'site123' },
       });
@@ -135,7 +124,6 @@ const AgentsPage = () => {
     }
   };
 
-  // Edit agent
   const editAgent = (agentData) => {
     setAgent({
       ...agentData,
@@ -144,11 +132,10 @@ const AgentsPage = () => {
         parameters: f.parameters ? f.parameters.join(', ') : '',
       })),
     });
-    setEditAgentId(agentData.agentId || agentData.intent); // Use intent as fallback if agentId not set
+    setEditAgentId(agentData.agentId || agentData.intent);
     setShowForm(true);
   };
 
-  // Delete agent
   const deleteAgent = async () => {
     try {
       await axios.delete(`http://localhost:8000/agents/${deleteDialog.agentId}`);
@@ -161,248 +148,284 @@ const AgentsPage = () => {
     }
   };
 
-  const columns = [
-    { field: 'name', headerName: 'Name', width: 200 },
-    { field: 'intent', headerName: 'Intent', width: 200 },
-    {
-      field: 'features',
-      headerName: 'Features',
-      width: 400,
-      renderCell: (params) =>
-        params.value && params.value.length > 0 ? (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, py: 1 }}>
-            {params.value.map((f, i) => (
-              <Typography key={i} variant="body2">
-                {f.route} ({f.method}): {f.description}
-              </Typography>
-            ))}
-          </Box>
-        ) : (
-          <Typography variant="body2">No features defined</Typography> // Wrap text in Typography for consistency
-        ),
-    },
-    {
-      field: 'actions',
-      headerName: 'Actions',
-      width: 150,
-      renderCell: (params) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <IconButton onClick={() => editAgent(params.row)} color="primary">
-            <Edit />
-          </IconButton>
-          <IconButton
-            onClick={() => setDeleteDialog({ open: true, agentId: params.row.agentId || params.row.intent })}
-            color="error"
-          >
-            <Delete />
-          </IconButton>
-        </Box>
-      ),
-    },
-  ];
-
   return (
-    <Box sx={{ p: 4, maxWidth: 1200, mx: 'auto', bgcolor: '#f5f5f5', minHeight: '100vh' }}>
-      <Typography variant="h4" fontWeight="bold" gutterBottom>
+    <Box p={4} maxW="1200px" mx="auto" bg="gray.50" minH="100vh">
+      <Heading as="h1" size="xl" mb={4}>
         Agents Management
-      </Typography>
+      </Heading>
 
-      <Button
-        variant="contained"
-        startIcon={<Add />}
-        onClick={() => {
-          setShowForm(!showForm);
-          setAgent({
-            websiteId: 'site123',
-            name: '',
-            intent: '',
-            features: [{ route: '', method: 'GET', parameters: '', description: '' }],
-          });
-          setEditAgentId(null);
-        }}
-        sx={{ mb: 3 }}
-      >
-        {showForm ? 'Cancel' : 'Create Agent'}
-      </Button>
+      <Stack direction="row" mb={3} spacing={2}>
+        <Button
+          leftIcon={<Icon as={FaPlus} />}
+          colorScheme="teal"
+          onClick={() => {
+            setShowForm(!showForm);
+            setAgent({
+              websiteId: 'site123',
+              name: '',
+              intent: '',
+              features: [{ route: '', method: 'GET', parameters: '', description: '' }],
+            });
+            setEditAgentId(null);
+          }}
+        >
+          {showForm ? 'Cancel' : 'Create Agent'}
+        </Button>
+        <Collapsible.Root unmountOnExit open={showSessionInfo} onOpenChange={() => setShowSessionInfo(!showSessionInfo)}>
+          <Collapsible.Trigger asChild>
+            <Button
+              colorScheme="blue"
+              rightIcon={<Icon as={showSessionInfo ? FaChevronUp : FaChevronDown} />}
+              py={3}
+            >
+              {showSessionInfo ? 'Hide Session Info' : 'Show Session Info'}
+            </Button>
+          </Collapsible.Trigger>
+          <Collapsible.Content>
+            <Box bg="#f9f9f9" p={4} borderWidth="0" borderRadius="md" mb={3} w="100%">
+              <Text fontSize="sm" color="gray.600">
+                The Average Sessions Per User widget calculates the average number of sessions per customer for a specific agent over the last two weeks. A session is defined as a group of messages within a 30-minute window. Messages are filtered by agent ID and sender status, grouped by customer, and sorted by timestamp to identify sessions. The total number of sessions is divided by the number of unique customers to compute the average, displayed with two decimal places.
+              </Text>
+            </Box>
+          </Collapsible.Content>
+        </Collapsible.Root>
+      </Stack>
 
-      <Collapse in={showForm}>
-        <Card sx={{ mb: 4, p: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              {editAgentId ? 'Edit Agent' : 'Create Agent'}
-            </Typography>
+      <Collapsible.Root open={showForm} onOpenChange={() => setShowForm(!showForm)}>
+        <Collapsible.Content>
+          <Fieldset.Root size="lg" maxW="100%" bg="white" p={4} rounded="md" shadow="md" mb={4}>
+            <Stack>
+              <Fieldset.Legend as="h2" fontSize="md">
+                {editAgentId ? 'Edit Agent' : 'Create Agent'}
+              </Fieldset.Legend>
+            </Stack>
             {error && (
-              <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+              <Alert status="error" mb={4}>
+                <Icon as={FaExclamationCircle} color="red.500" mr={2} />
                 {error}
               </Alert>
             )}
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Agent Name"
-                  value={agent.name}
-                  onChange={(e) => setAgent({ ...agent, name: e.target.value })}
-                  placeholder="e.g., Search Agent"
-                  variant="outlined"
-                  error={!agent.name.trim()}
-                  helperText={!agent.name.trim() ? 'Name is required' : ''}
-                />
+            <Fieldset.Content>
+              <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap={4}>
+                <Field.Root invalid={!agent.name.trim()}>
+                  <Field.Label>Agent Name</Field.Label>
+                  <Input
+                    name="name"
+                    value={agent.name}
+                    onChange={(e) => setAgent({ ...agent, name: e.target.value })}
+                    placeholder="e.g., Search Agent"
+                  />
+                  {!agent.name.trim() && <Text color="red.500" fontSize="sm">Name is required</Text>}
+                </Field.Root>
+                <Field.Root invalid={!agent.intent.trim()}>
+                  <Field.Label>Intent</Field.Label>
+                  <Input
+                    name="intent"
+                    value={agent.intent}
+                    onChange={(e) => setAgent({ ...agent, intent: e.target.value })}
+                    placeholder="e.g., search_product"
+                  />
+                  {!agent.intent.trim() && <Text color="red.500" fontSize="sm">Intent is required</Text>}
+                </Field.Root>
+                <Box gridColumn="1 / -1">
+                  <Text fontWeight="medium" mb={2}>Features</Text>
+                  <For each={agent.features}>
+                    {(feature, index) => (
+                      <Box key={index} bg="gray.50" p={3} rounded="md" mb={3}>
+                        <Grid templateColumns={{ base: '1fr', sm: '1fr 1fr 0.2fr' }} gap={3} alignItems="center">
+                          <Field.Root invalid={!feature.route.trim()}>
+                            <Field.Label>Route</Field.Label>
+                            <Input
+                              name={`route-${index}`}
+                              value={feature.route}
+                              onChange={(e) => updateFeature(index, 'route', e.target.value)}
+                              placeholder="e.g., /products"
+                            />
+                            {!feature.route.trim() && <Text color="red.500" fontSize="sm">Route is required</Text>}
+                          </Field.Root>
+                          <Field.Root>
+                            <Field.Label>Method</Field.Label>
+                            <NativeSelect.Root>
+                              <NativeSelect.Field
+                                name={`method-${index}`}
+                                value={feature.method}
+                                onChange={(e) => updateFeature(index, 'method', e.target.value)}
+                              >
+                                <option value="" disabled>Select method</option>
+                                <option value="GET">GET</option>
+                                <option value="POST">POST</option>
+                              </NativeSelect.Field>
+                              <NativeSelect.Indicator />
+                            </NativeSelect.Root>
+                          </Field.Root>
+                          <IconButton
+                            icon={<Icon as={FaTrash} />}
+                            colorScheme="red"
+                            onClick={() => removeFeature(index)}
+                            isDisabled={agent.features.length === 1}
+                            alignSelf="center"
+                          />
+                          <Field.Root>
+                            <Field.Label>Parameters (comma-separated)</Field.Label>
+                            <Input
+                              name={`parameters-${index}`}
+                              value={feature.parameters}
+                              onChange={(e) => updateFeature(index, 'parameters', e.target.value)}
+                              placeholder="e.g., brand,category,sort"
+                            />
+                          </Field.Root>
+                          <Field.Root invalid={!feature.description.trim()}>
+                            <Field.Label>Description</Field.Label>
+                            <Input
+                              name={`description-${index}`}
+                              value={feature.description}
+                              onChange={(e) => updateFeature(index, 'description', e.target.value)}
+                              placeholder="e.g., Search products by brand"
+                            />
+                            {!feature.description.trim() && <Text color="red.500" fontSize="sm">Description is required</Text>}
+                          </Field.Root>
+                        </Grid>
+                      </Box>
+                    )}
+                  </For>
+                  <Button leftIcon={<Icon as={FaPlus} />} colorScheme="teal" onClick={addFeature} mt={2}>
+                    Add Feature
+                  </Button>
+                </Box>
               </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Intent"
-                  value={agent.intent}
-                  onChange={(e) => setAgent({ ...agent, intent: e.target.value })}
-                  placeholder="e.g., search_product"
-                  variant="outlined"
-                  error={!agent.intent.trim()}
-                  helperText={!agent.intent.trim() ? 'Intent is required' : ''}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
-                  Features
-                </Typography>
-                {agent.features.map((feature, index) => (
-                  <Card key={index} variant="outlined" sx={{ p: 2, mb: 2 }}>
-                    <Grid container spacing={2} alignItems="center">
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth
-                          label="Route"
-                          value={feature.route}
-                          onChange={(e) => updateFeature(index, 'route', e.target.value)}
-                          placeholder="e.g., /products"
-                          variant="outlined"
-                          error={!feature.route.trim()}
-                          helperText={!feature.route.trim() ? 'Route is required' : ''}
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={3}>
-                        <FormControl fullWidth variant="outlined">
-                          <InputLabel>Method</InputLabel>
-                          <Select
-                            value={feature.method}
-                            onChange={(e) => updateFeature(index, 'method', e.target.value)}
-                            label="Method"
-                          >
-                            <MenuItem value="GET">GET</MenuItem>
-                            <MenuItem value="POST">POST</MenuItem>
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid item xs={12} sm={3}>
-                        <IconButton
-                          color="error"
-                          onClick={() => removeFeature(index)}
-                          disabled={agent.features.length === 1}
-                        >
-                          <Delete />
-                        </IconButton>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth
-                          label="Parameters (comma-separated)"
-                          value={feature.parameters}
-                          onChange={(e) => updateFeature(index, 'parameters', e.target.value)}
-                          placeholder="e.g., brand,category,sort"
-                          variant="outlined"
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth
-                          label="Description"
-                          value={feature.description}
-                          onChange={(e) => updateFeature(index, 'description', e.target.value)}
-                          placeholder="e.g., Search products by brand"
-                          variant="outlined"
-                          error={!feature.description.trim()}
-                          helperText={!feature.description.trim() ? 'Description is required' : ''}
-                        />
-                      </Grid>
-                    </Grid>
-                  </Card>
-                ))}
-                <Button
-                  variant="outlined"
-                  startIcon={<Add />}
-                  onClick={addFeature}
-                  sx={{ mt: 2 }}
-                >
-                  Add Feature
-                </Button>
-              </Grid>
-              <Grid item xs={12}>
-                <Button
-                  variant="contained"
-                  startIcon={<Save />}
-                  onClick={saveAgent}
-                  disabled={!isFormValid()}
-                  fullWidth
-                >
-                  {editAgentId ? 'Update Agent' : 'Save Agent'}
-                </Button>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      </Collapse>
+            </Fieldset.Content>
+            <Button
+              leftIcon={<Icon as={FaCheck} />}
+              colorScheme="teal"
+              onClick={saveAgent}
+              isDisabled={!isFormValid()}
+              alignSelf="flex-start"
+              mt={4}
+            >
+              {editAgentId ? 'Update Agent' : 'Save Agent'}
+            </Button>
+          </Fieldset.Root>
+        </Collapsible.Content>
+      </Collapsible.Root>
 
-      <Typography variant="h5" fontWeight="medium" gutterBottom>
+      <Heading as="h2" size="lg" mb={4}>
         Created Agents
-      </Typography>
+      </Heading>
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-          <CircularProgress />
-        </Box>
+        <Stack direction="row" justify="center" py={4}>
+          <Box
+            w={6}
+            h={6}
+            borderRadius="full"
+            border="2px solid"
+            borderColor="teal.500"
+            borderTopColor="transparent"
+            animate={{ rotate: 360 }}
+            transition="1s linear infinite"
+          />
+        </Stack>
       ) : error ? (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert status="error" mb={4}>
+          <Icon as={FaExclamationCircle} color="red.500" mr={2} />
           {error}
         </Alert>
       ) : (
-        <Box sx={{ height: 400, bgcolor: '#fff', borderRadius: 2, overflow: 'hidden' }}>
-  <DataGrid
-    rows={agents.map((a, i) => ({ id: i, ...a }))}
-    columns={columns}
-    pageSize={5}
-    rowsPerPageOptions={[5, 10, 20]}
-    disableSelectionOnClick
-    autoHeight
-    sx={{
-      '& .MuiDataGrid-cell': {
-        py: 2,
-        display: 'flex',
-        alignItems: 'center', // Vertically center cell content
-      },
-      '& .MuiDataGrid-columnHeader': {
-        display: 'flex',
-        alignItems: 'center', // Vertically center header content
-      },
-    }}
-  />
-</Box>
+        <Box bg="white" rounded="md" shadow="md" overflowX="auto">
+          <Table.Root aria-label="Agents list" size="md">
+            <Table.Header bg="gray.100">
+              <Table.Row>
+                <Table.ColumnHeader p={2}>Name</Table.ColumnHeader>
+                <Table.ColumnHeader p={2}>Intent</Table.ColumnHeader>
+                <Table.ColumnHeader p={2}>Features</Table.ColumnHeader>
+                <Table.ColumnHeader p={2}>Actions</Table.ColumnHeader>
+              </Table.Row>
+            </Table.Header>
+            <Table.Body>
+              <For each={agents.map((a, i) => ({ id: i, ...a }))}>
+                {(row) => (
+                  <Table.Row key={row.id}>
+                    <Table.Cell p={2}>{row.name}</Table.Cell>
+                    <Table.Cell p={2}>{row.intent}</Table.Cell>
+                    <Table.Cell p={2}>
+                      {row.features && row.features.length > 0 ? (
+                        <Stack direction="column" align="start" spacing={1}>
+                          <For each={row.features}>
+                            {(f) => (
+                              <Text key={f.route} fontSize="sm">
+                                {f.route} ({f.method}): {f.description}
+                              </Text>
+                            )}
+                          </For>
+                        </Stack>
+                      ) : (
+                        <Text fontSize="sm">No features defined</Text>
+                      )}
+                    </Table.Cell>
+                    <Table.Cell p={2}>
+                      <Stack direction="row" spacing={2}>
+                        <IconButton
+                          icon={<Icon as={FaEdit} />}
+                          colorScheme="blue"
+                          onClick={() => editAgent(row)}
+                          aria-label="Edit agent"
+                        />
+                        <IconButton
+                          icon={<Icon as={FaTrash} />}
+                          colorScheme="red"
+                          onClick={() => setDeleteDialog({ open: true, agentId: row.agentId || row.intent })}
+                          aria-label="Delete agent"
+                        />
+                      </Stack>
+                    </Table.Cell>
+                  </Table.Row>
+                )}
+              </For>
+            </Table.Body>
+          </Table.Root>
+        </Box>
       )}
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={deleteDialog.open}
-        onClose={() => setDeleteDialog({ open: false, agentId: null })}
-      >
-        <DialogTitle>Confirm Deletion</DialogTitle>
-        <DialogContent>
-          <Typography>Are you sure you want to delete this agent?</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialog({ open: false, agentId: null })}>Cancel</Button>
-          <Button onClick={deleteAgent} color="error" variant="contained">
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <Dialog.Root open={deleteDialog.open} onOpenChange={(e) => setDeleteDialog({ open: e.open, agentId: deleteDialog.agentId })}>
+        <Dialog.Backdrop />
+        <Dialog.Positioner>
+          <Dialog.Content>
+            <Dialog.CloseTrigger asChild>
+              <IconButton
+                icon={<Icon as={FaTimes} />}
+                position="absolute"
+                top={2}
+                right={2}
+                variant="ghost"
+                aria-label="Close dialog"
+              />
+            </Dialog.CloseTrigger>
+            
+            <Dialog.Header>
+              <Dialog.Title>Confirm Deletion</Dialog.Title>
+            </Dialog.Header>
+            <Dialog.Body>
+              <Text>Are you sure you want to delete this agent?</Text>
+            </Dialog.Body>
+            <Dialog.Footer>
+              <Button
+                variant="outline"
+                mr={3}
+                leftIcon={<Icon as={FaTimes} />}
+                onClick={() => setDeleteDialog({ open: false, agentId: null })}
+              >
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                leftIcon={<Icon as={FaTrash} />}
+                onClick={deleteAgent}
+              >
+                Delete
+              </Button>
+            </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Dialog.Root>
     </Box>
   );
 };

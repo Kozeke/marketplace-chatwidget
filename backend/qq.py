@@ -6,6 +6,11 @@ import os
 from typing import List, Optional,Dict
 from datetime import datetime
 from pydantic import ValidationError
+import onnxruntime as ort
+from transformers import DistilBertTokenizer
+import numpy as np
+from pathlib import Path
+
 
 app = FastAPI()
 
@@ -22,26 +27,37 @@ app.add_middleware(
 client = MongoClient(os.getenv("MONGO_URI", "mongodb://localhost:27017"))
 db = client["chatwidget"]
 
+# Load the fine-tuned model and tokenizer
+from transformers import pipeline
+# # Define paths using absolute paths to avoid resolution issues
+# BASE_DIR = Path(__file__).resolve().parent
+# MODEL_PATH = BASE_DIR / "onnx_intent_model" / "model.onnx"
+# TOKENIZER_PATH = BASE_DIR / "onnx_intent_model" / "tokenizer"
 
+# # Verify tokenizer directory and files
+# if not TOKENIZER_PATH.exists():
+#     raise FileNotFoundError(f"Tokenizer directory not found at {TOKENIZER_PATH}")
+# for required_file in ["tokenizer_config.json", "tokenizer.json"]:
+#     if not (TOKENIZER_PATH / required_file).exists():
+#         raise FileNotFoundError(f"Required file {required_file} not found in {TOKENIZER_PATH}")
 
-# from transformers import pipeline, DistilBertForSequenceClassification, DistilBertTokenizer
+# # Load ONNX model and tokenizer
+# try:
+#     session = ort.InferenceSession(str(MODEL_PATH))
+# except Exception as e:
+#     raise RuntimeError(f"Failed to load ONNX model from {MODEL_PATH}: {str(e)}")
 
-# model = DistilBertForSequenceClassification.from_pretrained("./fine_tune_model")
-# tokenizer = DistilBertTokenizer.from_pretrained("./fine_tune_model")
+# try:
+#     tokenizer = DistilBertTokenizer.from_pretrained(str(TOKENIZER_PATH))
+# except Exception as e:
+#     raise RuntimeError(f"Failed to load tokenizer from {TOKENIZER_PATH}: {str(e)}")
 
+intent_map = {0: "search_product", 1: "order_item", 2: "access_issue"}
 
-# # Load the fine-tuned model and tokenizer
-# from transformers import pipeline
+# Define request body model
+class TextInput(BaseModel):
+    text: str
 
-# classifier = pipeline(
-#     "text-classification",
-#     model=model,
-#     tokenizer=tokenizer
-# )
-
-# class TextInput(BaseModel):
-#     text: str
-    
 # @app.post("/predict")
 # async def predict(input_data: TextInput):
 #     try:
@@ -59,55 +75,27 @@ db = client["chatwidget"]
 #         return {"intent": predicted_intent}
 #     except Exception as e:
 #         return {"error": f"Prediction failed: {str(e)}"}
+classifier = pipeline(
+    "text-classification",
+    model="./fine_tuned_model",
+    tokenizer="distilbert-base-uncased"
+)
 
+# Define a request model for the input text
+class TextInput(BaseModel):
+    text: str
 
 # WebSocket connections
 connected_clients: Dict[str, WebSocket] = {}  # userId -> WebSocket
 connected_agents: Dict[str, WebSocket] = {}  # agentId -> WebSocket
 
 # Define a POST endpoint for intent classification
-from fastapi import FastAPI
-from pydantic import BaseModel
-import spacy
-from transformers import pipeline
-
-nlp = spacy.load("en_core_web_sm")  # Should now load without error
-classifier = pipeline("text-classification", model="multi_intent_model", tokenizer="multi_intent_model")
-
-# Label mapping
-inverse_label_map = {0: "search_product", 1: "place_order", 2: "track_order"}
-
-class TextInput(BaseModel):
-    text: str
-
 @app.post("/classify-intent")
 async def classify_intent(input: TextInput):
-    # Classify intent
-    result = classifier(input.text.lower())[0]  # Returns list of scores for each label
-    intents = [
-        {"intent": inverse_label_map[i], "confidence": score["score"]}
-        for i, score in enumerate(result) if score["score"] > 0.5
-    ]
-
-    # Entity extraction
-    doc = nlp(input.text.lower())
-    is_cheapest = "cheapest" in input.text.lower()
-    brand = "Sony"  # Default brand
-    category = "headphone"  # Default category
-    for token in doc:
-        if token.pos_ == "NOUN" and token.text not in ["cheapest", "expensive"]:
-            category = token.text  # Extract last noun as category
-        if token.ent_type_ == "ORG":
-            brand = token.text  # Extract brand if recognized
-
-    return {
-        "intents": intents,  # Return list of intents with confidences
-        "params": {
-            "brand": brand,
-            "category": category,
-            "sort": "price_asc" if is_cheapest else "price_desc"
-        }
-    }
+    result = classifier(input.text)
+    intent = result[0]["label"]  # Extract the predicted intent label
+    confidence = result[0]["score"]  # Extract the confidence score
+    return {"intent": intent, "confidence": confidence}
 
 # Agent Endpoints
 @app.post("/agents")
@@ -444,4 +432,4 @@ async def websocket_agent_endpoint(websocket: WebSocket, agentId: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

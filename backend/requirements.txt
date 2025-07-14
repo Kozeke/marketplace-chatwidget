@@ -5,3 +5,4 @@ openai
 pymongo
 python-dotenv
 requests
+spacy

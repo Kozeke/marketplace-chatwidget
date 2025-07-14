@@ -18,7 +18,7 @@
   
       // Load React bundle
       const script = document.createElement("script");
-      script.src = "http://localhost:5000/static/js/main.4dca37fe.js"; // Replace <js-hash> with actual hash
+      script.src = "http://localhost:5000/static/js/main.fe6c962e.js"; // Replace <js-hash> with actual hash
       script.async = false;
       script.onerror = () => console.error("Failed to load widget bundle");
       script.onload = () => console.log("Widget bundle loaded");

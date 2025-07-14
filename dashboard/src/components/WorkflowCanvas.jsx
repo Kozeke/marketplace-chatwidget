@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import ReactFlow, {
   MiniMap,
   Controls,
@@ -11,48 +11,60 @@ import 'reactflow/dist/style.css';
 import NodeConfigPanel from './NodeConfigPanel';
 import { Handle, Position } from 'reactflow';
 import axios from 'axios';
+import {
+  Box,
+  Button,
+  Flex,
+  Heading,
+  Field,
+  Fieldset,
+  Input,
+  Stack,
+  Text,
+  Dialog,
+  Icon,
+} from '@chakra-ui/react';
+import { FaCheck, FaTimes } from 'react-icons/fa';
+import { Collapsible } from '@chakra-ui/react';
 
-// Simple custom node components
+// Custom node components (unchanged)
 const TriggerNode = ({ data }) => (
-    <div className="p-4 rounded shadow" style={{ background: '#ffcc00' }}>
-      <Handle type="source" position={Position.Bottom} />
-      {data.label}
-      <Handle type="target" position={Position.Top} />
-    </div>
-  );
-  
-  const ActionNode = ({ data }) => (
-    <div className="p-4 rounded shadow" style={{ background: '#00ccff' }}>
-      <Handle type="source" position={Position.Bottom} />
-      {data.label}
-      <Handle type="target" position={Position.Top} />
-    </div>
-  );
-  const AgentNode = ({ data }) => (
-    <div className="p-4 rounded shadow text-sm relative" style={{ background: '#bada55' }}>
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        className="w-3 h-3 bg-black rounded-full border-2 border-white"
-      />
-      <div className="font-bold">{data.label}</div>
-      <div className="italic text-xs">Intent: {data.intent}</div>
-      <Handle
-        type="target"
-        position={Position.Top}
-        className="w-3 h-3 bg-black rounded-full border-2 border-white"
-      />
-    </div>
-  );
-  
-  
+  <div className="p-4 rounded shadow" style={{ background: '#ffcc00' }}>
+    <Handle type="source" position={Position.Bottom} />
+    {data.label}
+    <Handle type="target" position={Position.Top} />
+  </div>
+);
 
-// Register node components
+const ActionNode = ({ data }) => (
+  <div className="p-4 rounded shadow" style={{ background: '#00ccff' }}>
+    <Handle type="source" position={Position.Bottom} />
+    {data.label}
+    <Handle type="target" position={Position.Top} />
+  </div>
+);
+
+const AgentNode = ({ data }) => (
+  <div className="p-4 rounded shadow text-sm relative" style={{ background: '#bada55' }}>
+    <Handle
+      type="source"
+      position={Position.Bottom}
+      className="w-3 h-3 bg-black rounded-full border-2 border-white"
+    />
+    <div className="font-bold">{data.label}</div>
+    <div className="italic text-xs">Intent: {data.intent}</div>
+    <Handle
+      type="target"
+      position={Position.Top}
+      className="w-3 h-3 bg-black rounded-full border-2 border-white"
+    />
+  </div>
+);
+
 const nodeTypes = {
   trigger: TriggerNode,
   action: ActionNode,
   agent: AgentNode,
-
 };
 
 const WorkflowCanvas = ({ agents = [] }) => {
@@ -61,43 +73,60 @@ const WorkflowCanvas = ({ agents = [] }) => {
   const [nodeId, setNodeId] = useState(1);
   const [selectedNode, setSelectedNode] = useState(null);
   const [chain, setChain] = useState({
-    websiteId: 'site123',  // or dynamically set
+    websiteId: 'site123',
     chainId: '',
     name: '',
     agentSequence: [],
   });
-  const [showForm, setShowForm] = useState(false); // toggle for form
+  const [showForm, setShowForm] = useState(false);
+  const [dialog, setDialog] = useState({ open: false, message: '', status: 'info' });
+
   const saveChain = async () => {
     if (!chain.chainId || !chain.name || chain.agentSequence.some((intent) => !intent)) {
-      alert("Please fill all fields and select agents.");
+      setDialog({
+        open: true,
+        message: 'Please fill all fields and select agents.',
+        status: 'error',
+      });
       return;
     }
-  
-    // Validate agent features
+
     for (const intent of chain.agentSequence) {
       const agent = agents.find((a) => a.intent === intent);
       if (!agent || !agent.features || agent.features.length === 0) {
-        alert(`Agent ${intent} has no valid features.`);
+        setDialog({
+          open: true,
+          message: `Agent ${intent} has no valid features.`,
+          status: 'error',
+        });
         return;
       }
     }
-  
+
     try {
-      await axios.post("http://localhost:8000/chains", chain);
-      alert("Chain saved!");
+      await axios.post('http://localhost:8000/chains', chain);
+      setDialog({
+        open: true,
+        message: 'Chain saved!',
+        status: 'success',
+      });
       setChain({
-        websiteId: "site123",
-        chainId: "",
-        name: "",
+        websiteId: 'site123',
+        chainId: '',
+        name: '',
         agentSequence: [],
       });
       setShowForm(false);
     } catch (err) {
-      console.error("Error saving chain:", err);
-      alert("Failed to save chain.");
+      console.error('Error saving chain:', err);
+      setDialog({
+        open: true,
+        message: 'Failed to save chain.',
+        status: 'error',
+      });
     }
   };
-  
+
   const onNodeClick = (event, node) => {
     setSelectedNode(node);
   };
@@ -108,6 +137,7 @@ const WorkflowCanvas = ({ agents = [] }) => {
     );
     setSelectedNode(null);
   };
+
   const onConnect = useCallback(
     (params) => setEdges((eds) => addEdge(params, eds)),
     [setEdges]
@@ -117,32 +147,33 @@ const WorkflowCanvas = ({ agents = [] }) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
   };
+
   const extractAgentSequence = () => {
     return nodes
       .filter((node) => node.type === 'agent')
       .map((node) => node.data.intent);
   };
-  
+
   const onDrop = (event) => {
     event.preventDefault();
     const itemData = event.dataTransfer.getData('application/reactflow');
     if (!itemData) return;
-  
+
     const bounds = event.target.getBoundingClientRect();
     const position = {
       x: event.clientX - bounds.left,
       y: event.clientY - bounds.top,
     };
-  
+
     let parsed;
     try {
       parsed = JSON.parse(itemData);
     } catch {
       parsed = { type: itemData };
     }
-  
+
     const nodeIdStr = `${nodeId}`;
-  
+
     const newNode = {
       id: nodeIdStr,
       type: parsed.type,
@@ -161,39 +192,44 @@ const WorkflowCanvas = ({ agents = [] }) => {
                 `${parsed.type.charAt(0).toUpperCase() + parsed.type.slice(1)} ${nodeId}`,
             },
     };
-  
+
     setNodes((nds) => nds.concat(newNode));
     setNodeId((id) => id + 1);
   };
-  
 
   return (
-    <div className="flex">
-      <div className="w-64 bg-gray-200 p-4">
-      <h2 className="text-lg font-bold mt-6">Agents</h2>
-        {agents.map((agent, index) => (
-        <div
-            key={`agent-${index}`}
-            className="p-2 my-2 bg-white rounded cursor-move shadow"
-            draggable
-            onDragStart={(event) => {
-            event.dataTransfer.setData(
-                'application/reactflow',
-                JSON.stringify({ type: 'agent', agent })
-            );
-            }}
-        >
-            {agent.name ?? agent.intent}
-        </div>
-        ))}
-      </div>
+    <Flex w="100%" h="80vh" bg="gray.100">
+      {/* Left Sidebar: Agents List */}
+      <Box w={{ base: '100%', md: '16rem' }} bg="gray.200" p={4} overflowY="auto">
+        <Heading as="h2" size="md" mb={6}>
+          Agents
+        </Heading>
+        <Stack spacing={2}>
+          {agents.map((agent, index) => (
+            <Box
+              key={`agent-${index}`}
+              p={2}
+              bg="white"
+              rounded="md"
+              shadow="sm"
+              cursor="move"
+              _hover={{ bg: 'gray.50' }}
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.setData(
+                  'application/reactflow',
+                  JSON.stringify({ type: 'agent', agent })
+                );
+              }}
+            >
+              <Text fontSize="sm">{agent.name ?? agent.intent}</Text>
+            </Box>
+          ))}
+        </Stack>
+      </Box>
 
-      <div
-        className="flex-1"
-        style={{ height: '80vh' }}
-        onDrop={onDrop}
-        onDragOver={onDragOver}
-      >
+      {/* Main Canvas */}
+      <Box flex={1} onDrop={onDrop} onDragOver={onDragOver}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -208,56 +244,106 @@ const WorkflowCanvas = ({ agents = [] }) => {
           <Controls />
           <Background />
         </ReactFlow>
-      </div>
-     {/* Right Sidebar: Config Panel and Save Chain Form */}
-<div className="w-80 bg-white p-4 shadow-lg flex flex-col">
-  <NodeConfigPanel selectedNode={selectedNode} onSave={onSaveConfig} />
+      </Box>
 
-  <div className="mt-4">
-    <button
-      className="w-full bg-green-500 text-white p-2 rounded mb-2"
-      onClick={() => {
-        setChain({ ...chain, agentSequence: extractAgentSequence() });
-        setShowForm(true);
-      }}
-    >
-      Save Current Chain
-    </button>
+      {/* Right Sidebar: Config Panel and Chain Form */}
+      <Box w={{ base: '100%', md: '20rem' }} bg="white" p={4} shadow="lg" overflowY="auto">
+        <NodeConfigPanel selectedNode={selectedNode} onSave={onSaveConfig} />
+        <Stack spacing={4} mt={4}>
+          <Button
+            colorScheme="teal"
+            leftIcon={<Icon as={FaCheck} />}
+            onClick={() => {
+              setChain({ ...chain, agentSequence: extractAgentSequence() });
+              setShowForm(true);
+            }}
+          >
+            Save Current Chain
+          </Button>
+          <Collapsible.Root open={showForm} onOpenChange={() => setShowForm(!showForm)}>
+            <Collapsible.Content>
+              <Fieldset.Root size="lg" maxW="100%">
+                <Fieldset.Content>
+                  <Field.Root>
+                    <Field.Label>Chain ID</Field.Label>
+                    <Input
+                      name="chainId"
+                      value={chain.chainId}
+                      onChange={(e) => setChain({ ...chain, chainId: e.target.value })}
+                      placeholder="Enter chain ID"
+                    />
+                  </Field.Root>
+                  <Field.Root>
+                    <Field.Label>Chain Name</Field.Label>
+                    <Input
+                      name="name"
+                      value={chain.name}
+                      onChange={(e) => setChain({ ...chain, name: e.target.value })}
+                      placeholder="Enter chain name"
+                    />
+                  </Field.Root>
+                </Fieldset.Content>
+                <Stack direction="row" mt={4} spacing={2}>
+                  <Button
+                    colorScheme="blue"
+                    leftIcon={<Icon as={FaCheck} />}
+                    onClick={saveChain}
+                  >
+                    Save Chain
+                  </Button>
+                  <Button
+                    variant="outline"
+                    leftIcon={<Icon as={FaTimes} />}
+                    onClick={() => setShowForm(false)}
+                  >
+                    Cancel
+                  </Button>
+                </Stack>
+              </Fieldset.Root>
+            </Collapsible.Content>
+          </Collapsible.Root>
+        </Stack>
+      </Box>
 
-    {showForm && (
-      <div className="flex flex-col gap-2 mt-2">
-        <input
-          type="text"
-          placeholder="Chain ID"
-          value={chain.chainId}
-          onChange={(e) => setChain({ ...chain, chainId: e.target.value })}
-          className="w-full p-2 border rounded"
-        />
-        <input
-          type="text"
-          placeholder="Chain Name"
-          value={chain.name}
-          onChange={(e) => setChain({ ...chain, name: e.target.value })}
-          className="w-full p-2 border rounded"
-        />
-        <button
-          className="w-full bg-blue-600 text-white p-2 rounded"
-          onClick={saveChain}
-        >
-          Save Chain
-        </button>
-        <button
-          className="w-full bg-gray-300 text-black p-2 rounded"
-          onClick={() => setShowForm(false)}
-        >
-          Cancel
-        </button>
-      </div>
-    )}
-  </div>
-</div>
-
-    </div>
+      {/* Dialog for Save Feedback */}
+      <Dialog.Root
+        open={dialog.open}
+        onOpenChange={(e) => setDialog({ ...dialog, open: e.open })}
+      >
+        <Dialog.Backdrop />
+        <Dialog.Positioner>
+          <Dialog.Content>
+            <Dialog.CloseTrigger asChild>
+              <Button
+                position="absolute"
+                top={2}
+                right={2}
+                variant="ghost"
+                leftIcon={<Icon as={FaTimes} />}
+              >
+                Close
+              </Button>
+            </Dialog.CloseTrigger>
+            <Dialog.Header>
+              <Dialog.Title>
+                {dialog.status === 'success' ? 'Success' : 'Error'}
+              </Dialog.Title>
+            </Dialog.Header>
+            <Dialog.Body>
+              <Text>{dialog.message}</Text>
+            </Dialog.Body>
+            <Dialog.Footer>
+              <Button
+                colorScheme="blue"
+                onClick={() => setDialog({ ...dialog, open: false })}
+              >
+                OK
+              </Button>
+            </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Dialog.Root>
+    </Flex>
   );
 };
 

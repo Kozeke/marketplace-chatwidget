@@ -9,6 +9,7 @@ import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import nlp from "compromise";
 import Cookies from 'js-cookie';
+import { BACKEND_HOST, WS_HOST } from '../config';
 
 const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-confirmation/1/" }) => {
     const [messages, setMessages] = useState([]);
@@ -22,7 +23,7 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
     const [userDetails, setUserDetails] = useState({ customer_name: "", address: "" });
     const [userId, setUserId] = useState(null);
     const websiteId = "site123";
-    const marketplaceApiUrl = "http://localhost:8082";
+    const marketplaceApiUrl = "http://localhost:8083";
     const widgetRef = useRef(null);
     const resizeRef = useRef(null);
     const navigate = useNavigate();
@@ -80,32 +81,32 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
         }
     };
     useEffect(() => {
-    const fetchIntent = async () => {
-      try {
-        const response = await fetch("http://localhost:8001/classify-intent", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            text: "I want to book a flight", // Replace with any input text
-          }),
-        });
+        const fetchIntent = async () => {
+            try {
+                const response = await fetch(`${BACKEND_HOST}/classify-intent`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        text: "I want to book a flight", // Replace with any input text
+                    }),
+                });
 
-        const data = await response.json();
-        console.log("Intent classification result:", data);
-      } catch (error) {
-        console.error("Error fetching intent classification:", error);
-      }
-    };
+                const data = await response.json();
+                console.log("Intent classification result:", data);
+            } catch (error) {
+                console.error("Error fetching intent classification:", error);
+            }
+        };
 
-    fetchIntent();
-  }, []);
+        fetchIntent();
+    }, []);
     // Fetch settings on mount
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const response = await axios.get(`http://localhost:8000/widget/${clientId}`);
+                const response = await axios.get(`${BACKEND_HOST}/widget/${clientId}`);
                 setSettings(response.data.widgetSettings);
                 setIsCollapsed(response.data.isCollapsed);
                 setSize({
@@ -125,7 +126,7 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
         const createSession = async () => {
             if (!userId) return;
             try {
-                const response = await axios.post('http://localhost:8000/chat/session', {
+                const response = await axios.post(`${BACKEND_HOST}/chat/session`, {
                     sessionId: `session_${userId}_${Date.now()}`,
                     clientId,
                     userId,
@@ -147,7 +148,7 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
     useEffect(() => {
         if (!sessionId || !userId) return;
 
-        const websocket = new WebSocket(`ws://localhost:8000/ws/chat/${clientId}/${userId}`);
+        const websocket = new WebSocket(`${WS_HOST}/ws/chat/${clientId}/${userId}`);
         setWs(websocket);
 
         websocket.onopen = () => {
@@ -319,8 +320,8 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
         const fetchData = async () => {
             try {
                 const [agentsResponse, chainsResponse] = await Promise.all([
-                    axios.get("http://localhost:8000/agents", { params: { websiteId } }),
-                    axios.get("http://localhost:8000/chains", { params: { websiteId } }),
+                    axios.get(`${BACKEND_HOST}/agents`, { params: { websiteId } }),
+                    axios.get(`${BACKEND_HOST}/chains`, { params: { websiteId } }),
                 ]);
                 setAgents(Array.isArray(agentsResponse.data.agents) ? agentsResponse.data.agents : []);
                 setChains(Array.isArray(chainsResponse.data.chains) ? chainsResponse.data.chains : []);
@@ -373,40 +374,32 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
         };
     }, []); // Empty dependency array to ensure stable event listeners
     // Async version of processQuery using WebLLM
-    const processQuery = (query) => {
-        // const doc = nlp(query.toLowerCase());
-        // const isCheapest = doc.has("cheapest");
-        // const brand = "Sony";
-        // const categoryMatch = doc.match("#Noun").text();
-        // const category = categoryMatch ? categoryMatch.split(" ").pop() : "headphone";
-        // return {
-        //     intent: "search_product",
-        //     params: {
-        //         brand,
-        //         category,
-        //         sort: isCheapest ? "price_asc" : "price_desc",
-        //     },
-        // };
-        const fetchIntent = async () => {
-      try {
-        const response = await fetch("http://localhost:8001/classify-intent", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            text: query, // Replace with any input text
-          }),
-        });
+    const processQuery = async (query) => {
+        try {
+            const response = await fetch(`${BACKEND_HOST}/classify-intent`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    text: query,
+                }),
+            });
 
-        const data = await response.json();
-        console.log("Intent classification result:", data);
-      } catch (error) {
-        console.error("Error fetching intent classification:", error);
-      }
-    };
-
-    fetchIntent();
+            const data = await response.json();
+            console.log("Intent classification result:", data);
+            return data; // Returns { intents: [{intent, confidence}], params: { brand, category, sort } }
+        } catch (error) {
+            console.error("Error fetching intent classification:", error);
+            return {
+                intents: [{ intent: "search_product", confidence: 1.0 }],
+                params: {
+                    brand: "Sony",
+                    category: "headphone",
+                    sort: "price_desc"
+                }
+            }; // Fallback
+        }
     };
 
     // Execute a single agent
@@ -414,12 +407,12 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
         const normalizedIntent = intent.replace(/^[a-z]+_/, '');
         let feature = agent.features.find((f) => f.route.toLowerCase().includes(normalizedIntent.toLowerCase()));
         feature = feature || agent.features[0];
-    
+
         if (!feature) {
             console.error("No feature found for agent:", agent, "intent:", intent);
             return { error: "No route found for this agent." };
         }
-    
+
         // Construct the route and handle category parameter
         let route = feature.route;
         let queryParams = { ...params };
@@ -427,22 +420,22 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
             route = `${route.replace(/\/$/, '')}/${queryParams.category.toLowerCase()}/`;
             delete queryParams.category;
         }
-    
+
         console.log("Executing agent:", agent.intent, "with params:", queryParams, "route:", route);
-    
+
         try {
             const httpMethod = (feature.method || 'GET').toLowerCase();
             const csrfToken = Cookies.get('csrftoken'); // Get CSRF token from cookie
-    
+
             const requestConfig = {
                 withCredentials: true,
                 headers: {},
             };
-    
+
             if (httpMethod !== 'get') {
                 requestConfig.headers['X-CSRFToken'] = csrfToken;
             }
-    
+
             let response;
             if (httpMethod === 'get') {
                 requestConfig.params = queryParams;
@@ -450,9 +443,9 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
             } else {
                 response = await axios[httpMethod](`${marketplaceApiUrl}${route}`, queryParams, requestConfig);
             }
-    
+
             console.log("API response:", response.data);
-    
+
             if (response.data.message) {
                 return { result: response.data.message, params: response.data };
             } else if (Array.isArray(response.data) && response.data.length) {
@@ -606,26 +599,41 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
         setLoading(true);
         try {
             const result = await processQuery(input);
-            if (!result) return; // guard for errors
+            if (!result || !result.intents || result.intents.length === 0) {
+                console.error("No intents returned");
+                return;
+            }
 
-            const { intent, params } = result;
-            console.log("intent", intent);
-            const chain = chains.find((c) => c.agentSequence[0] === intent);
-            console.log("chain", chain)
+            const { intents, params } = result;
+            console.log("Detected intents:", intents);
+
+            // Find a chain that matches the first intent (or adapt to handle multiple intents)
+            const primaryIntent = intents[0].intent; // Use the highest-confidence intent
+            const chain = chains.find((c) => c.agentSequence.includes(primaryIntent));
+            console.log("Selected chain:", chain);
+
             if (chain) {
-                console.log("running chain")
+                console.log("Running chain for intents:", intents);
                 let currentParams = { ...params };
+                let newMessages = [];
+
                 for (const agentIntent of chain.agentSequence) {
+                    // Only process intents present in the detected intents
+                    if (!intents.some(i => i.intent === agentIntent)) {
+                        continue; // Skip if intent not detected
+                    }
+
                     const agent = agents.find((a) => a.intent === agentIntent);
                     if (!agent) {
                         newMessages.push({ sender: "bot", text: `No agent found for intent: ${agentIntent}` });
                         break;
                     }
+
                     let mappedParams = { ...currentParams };
                     if (agentIntent === "recommend_product") {
-                        mappedParams = { product: currentParams.id };
+                        mappedParams = { product: currentParams.id || currentParams.category };
                     } else if (agentIntent === "place_order") {
-                        const newPendingOrder = { product_id: currentParams.id };
+                        const newPendingOrder = { product_id: currentParams.id || currentParams.category };
                         if (userDetails.customer_name) {
                             newPendingOrder.customer_name = userDetails.customer_name;
                         }
@@ -644,16 +652,20 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
                         setInput("");
                         setLoading(false);
                         return;
+                    } else if (agentIntent === "track_order") {
+                        mappedParams = { order_id: currentParams.order_id || "unknown" };
                     }
+
                     const { result, error, params: newParams } = await executeAgent(agent, mappedParams, agentIntent);
                     if (error) {
                         newMessages.push({ sender: "bot", text: error });
                         break;
                     }
-                    console.log("pushing message", result)
+                    console.log("Pushing message:", result);
                     newMessages.push({ sender: "bot", text: result });
                     currentParams = newParams;
                 }
+                setMessages((prev) => [...prev, ...newMessages]);
             } else {
                 const agent = agents.find((a) => a.intent === intent);
                 if (!agent) {
@@ -892,7 +904,7 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
                                 <div
                                     style={{
                                         padding: '8px 12px',
-                                        width:'94%',
+                                        width: '94%',
                                         borderRadius: msg.sender === 'user' ? '12px' : '0 12px 12px 12px', // Adjust radius for bot/agent to connect with header
                                         // backgroundColor:
                                         //     msg.sender === 'user'

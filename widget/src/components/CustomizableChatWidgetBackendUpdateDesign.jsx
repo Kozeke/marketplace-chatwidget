@@ -9,6 +9,8 @@ import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import nlp from "compromise";
 import Cookies from 'js-cookie';
+import { BACKEND_HOST, WS_HOST } from '../config';
+import { Box, Flex, Image, Text, Table, For, Button, Input } from '@chakra-ui/react';
 
 const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-confirmation/1/" }) => {
     const [messages, setMessages] = useState([]);
@@ -22,7 +24,7 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
     const [userDetails, setUserDetails] = useState({ customer_name: "", address: "" });
     const [userId, setUserId] = useState(null);
     const websiteId = "site123";
-    const marketplaceApiUrl = "http://localhost:8082";
+    const marketplaceApiUrl = "http://localhost:8083";
     const widgetRef = useRef(null);
     const resizeRef = useRef(null);
     const navigate = useNavigate();
@@ -80,32 +82,32 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
         }
     };
     useEffect(() => {
-    const fetchIntent = async () => {
-      try {
-        const response = await fetch("http://localhost:8001/classify-intent", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            text: "I want to book a flight", // Replace with any input text
-          }),
-        });
+        const fetchIntent = async () => {
+            try {
+                const response = await fetch(`${BACKEND_HOST}/classify-intent`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        text: "I want to book a flight", // Replace with any input text
+                    }),
+                });
 
-        const data = await response.json();
-        console.log("Intent classification result:", data);
-      } catch (error) {
-        console.error("Error fetching intent classification:", error);
-      }
-    };
+                const data = await response.json();
+                console.log("Intent classification result:", data);
+            } catch (error) {
+                console.error("Error fetching intent classification:", error);
+            }
+        };
 
-    fetchIntent();
-  }, []);
+        fetchIntent();
+    }, []);
     // Fetch settings on mount
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const response = await axios.get(`http://localhost:8000/widget/${clientId}`);
+                const response = await axios.get(`${BACKEND_HOST}/widget/${clientId}`);
                 setSettings(response.data.widgetSettings);
                 setIsCollapsed(response.data.isCollapsed);
                 setSize({
@@ -125,7 +127,7 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
         const createSession = async () => {
             if (!userId) return;
             try {
-                const response = await axios.post('http://localhost:8000/chat/session', {
+                const response = await axios.post(`${BACKEND_HOST}/chat/session`, {
                     sessionId: `session_${userId}_${Date.now()}`,
                     clientId,
                     userId,
@@ -147,7 +149,7 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
     useEffect(() => {
         if (!sessionId || !userId) return;
 
-        const websocket = new WebSocket(`ws://localhost:8000/ws/chat/${clientId}/${userId}`);
+        const websocket = new WebSocket(`${WS_HOST}/ws/chat/${clientId}/${userId}`);
         setWs(websocket);
 
         websocket.onopen = () => {
@@ -319,8 +321,8 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
         const fetchData = async () => {
             try {
                 const [agentsResponse, chainsResponse] = await Promise.all([
-                    axios.get("http://localhost:8000/agents", { params: { websiteId } }),
-                    axios.get("http://localhost:8000/chains", { params: { websiteId } }),
+                    axios.get(`${BACKEND_HOST}/agents`, { params: { websiteId } }),
+                    axios.get(`${BACKEND_HOST}/chains`, { params: { websiteId } }),
                 ]);
                 setAgents(Array.isArray(agentsResponse.data.agents) ? agentsResponse.data.agents : []);
                 setChains(Array.isArray(chainsResponse.data.chains) ? chainsResponse.data.chains : []);
@@ -373,40 +375,32 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
         };
     }, []); // Empty dependency array to ensure stable event listeners
     // Async version of processQuery using WebLLM
-    const processQuery = (query) => {
-        // const doc = nlp(query.toLowerCase());
-        // const isCheapest = doc.has("cheapest");
-        // const brand = "Sony";
-        // const categoryMatch = doc.match("#Noun").text();
-        // const category = categoryMatch ? categoryMatch.split(" ").pop() : "headphone";
-        // return {
-        //     intent: "search_product",
-        //     params: {
-        //         brand,
-        //         category,
-        //         sort: isCheapest ? "price_asc" : "price_desc",
-        //     },
-        // };
-        const fetchIntent = async () => {
-      try {
-        const response = await fetch("http://localhost:8001/classify-intent", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            text: query, // Replace with any input text
-          }),
-        });
+    const processQuery = async (query) => {
+        try {
+            const response = await fetch(`${BACKEND_HOST}/classify-intent`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    text: query,
+                }),
+            });
 
-        const data = await response.json();
-        console.log("Intent classification result:", data);
-      } catch (error) {
-        console.error("Error fetching intent classification:", error);
-      }
-    };
-
-    fetchIntent();
+            const data = await response.json();
+            console.log("Intent classification result:", data);
+            return data; // Returns { intents: [{intent, confidence}], params: { brand, category, sort } }
+        } catch (error) {
+            console.error("Error fetching intent classification:", error);
+            return {
+                intents: [{ intent: "search_product", confidence: 1.0 }],
+                params: {
+                    brand: "Sony",
+                    category: "headphone",
+                    sort: "price_desc"
+                }
+            }; // Fallback
+        }
     };
 
     // Execute a single agent
@@ -414,12 +408,12 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
         const normalizedIntent = intent.replace(/^[a-z]+_/, '');
         let feature = agent.features.find((f) => f.route.toLowerCase().includes(normalizedIntent.toLowerCase()));
         feature = feature || agent.features[0];
-    
+
         if (!feature) {
             console.error("No feature found for agent:", agent, "intent:", intent);
             return { error: "No route found for this agent." };
         }
-    
+
         // Construct the route and handle category parameter
         let route = feature.route;
         let queryParams = { ...params };
@@ -427,22 +421,22 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
             route = `${route.replace(/\/$/, '')}/${queryParams.category.toLowerCase()}/`;
             delete queryParams.category;
         }
-    
+
         console.log("Executing agent:", agent.intent, "with params:", queryParams, "route:", route);
-    
+
         try {
             const httpMethod = (feature.method || 'GET').toLowerCase();
             const csrfToken = Cookies.get('csrftoken'); // Get CSRF token from cookie
-    
+
             const requestConfig = {
                 withCredentials: true,
                 headers: {},
             };
-    
+
             if (httpMethod !== 'get') {
                 requestConfig.headers['X-CSRFToken'] = csrfToken;
             }
-    
+
             let response;
             if (httpMethod === 'get') {
                 requestConfig.params = queryParams;
@@ -450,9 +444,9 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
             } else {
                 response = await axios[httpMethod](`${marketplaceApiUrl}${route}`, queryParams, requestConfig);
             }
-    
+
             console.log("API response:", response.data);
-    
+
             if (response.data.message) {
                 return { result: response.data.message, params: response.data };
             } else if (Array.isArray(response.data) && response.data.length) {
@@ -606,26 +600,41 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
         setLoading(true);
         try {
             const result = await processQuery(input);
-            if (!result) return; // guard for errors
+            if (!result || !result.intents || result.intents.length === 0) {
+                console.error("No intents returned");
+                return;
+            }
 
-            const { intent, params } = result;
-            console.log("intent", intent);
-            const chain = chains.find((c) => c.agentSequence[0] === intent);
-            console.log("chain", chain)
+            const { intents, params } = result;
+            console.log("Detected intents:", intents);
+
+            // Find a chain that matches the first intent (or adapt to handle multiple intents)
+            const primaryIntent = intents[0].intent; // Use the highest-confidence intent
+            const chain = chains.find((c) => c.agentSequence.includes(primaryIntent));
+            console.log("Selected chain:", chain);
+
             if (chain) {
-                console.log("running chain")
+                console.log("Running chain for intents:", intents);
                 let currentParams = { ...params };
+                let newMessages = [];
+
                 for (const agentIntent of chain.agentSequence) {
+                    // Only process intents present in the detected intents
+                    if (!intents.some(i => i.intent === agentIntent)) {
+                        continue; // Skip if intent not detected
+                    }
+
                     const agent = agents.find((a) => a.intent === agentIntent);
                     if (!agent) {
                         newMessages.push({ sender: "bot", text: `No agent found for intent: ${agentIntent}` });
                         break;
                     }
+
                     let mappedParams = { ...currentParams };
                     if (agentIntent === "recommend_product") {
-                        mappedParams = { product: currentParams.id };
+                        mappedParams = { product: currentParams.id || currentParams.category };
                     } else if (agentIntent === "place_order") {
-                        const newPendingOrder = { product_id: currentParams.id };
+                        const newPendingOrder = { product_id: currentParams.id || currentParams.category };
                         if (userDetails.customer_name) {
                             newPendingOrder.customer_name = userDetails.customer_name;
                         }
@@ -644,16 +653,20 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
                         setInput("");
                         setLoading(false);
                         return;
+                    } else if (agentIntent === "track_order") {
+                        mappedParams = { order_id: currentParams.order_id || "unknown" };
                     }
+
                     const { result, error, params: newParams } = await executeAgent(agent, mappedParams, agentIntent);
                     if (error) {
                         newMessages.push({ sender: "bot", text: error });
                         break;
                     }
-                    console.log("pushing message", result)
+                    console.log("Pushing message:", result);
                     newMessages.push({ sender: "bot", text: result });
                     currentParams = newParams;
                 }
+                setMessages((prev) => [...prev, ...newMessages]);
             } else {
                 const agent = agents.find((a) => a.intent === intent);
                 if (!agent) {
@@ -757,450 +770,377 @@ const ChatWidget = ({ clientId = "client_123", successRedirectUrl = "/api/order-
     return (
         <div
             className="chat-widget-container"
-            style={{
+            sx={{
                 position: 'fixed',
                 [settings.position.includes('right') ? 'right' : 'left']: '20px',
                 bottom: '20px',
-                fontFamily: settings.font,
-                fontSize: settings.fontSize,
-                color: settings.textColor,
+                fontFamily: 'body',
+                fontSize: 'md',
+                color: 'gray.800',
             }}
         >
             {isCollapsed ? (
-                <button
+                <Button
                     className="chat-toggle-button"
                     onClick={toggleCollapse}
-                    style={{ backgroundColor: settings.primaryColor, color: settings.textColor }}
+                    bg="teal.500"
+                    color="white"
+                    borderRadius="md"
+                    px={4}
+                    py={2}
+                    boxShadow="sm"
+                    _hover={{ bg: 'teal.600' }}
                 >
                     {settings.title}
-                </button>
+                </Button>
             ) : (
-                <div
+                <Box
                     className="chat-widget"
                     ref={widgetRef}
-                    style={{
-                        width: `${size.width}px`,
-                        height: `${size.height}px`,
-                        backgroundColor: settings.backgroundColor,
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-                    }}
+                    w={`${size.width}px`}
+                    h={`${size.height}px`}
+                    bg="gray.50"
+                    borderRadius="md"
+                    boxShadow="lg"
+                    display="flex"
+                    flexDirection="column"
                 >
-                    <div
+                    <Flex
                         className="chat-header"
-                        style={{
-                            backgroundColor: settings.primaryColor,
-                            color: settings.textColor,
-                            padding: '10px',
-                            borderTopLeftRadius: '8px',
-                            borderTopRightRadius: '8px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                        }}
+                        bg="teal.600"
+                        color="white"
+                        p={3}
+                        borderTopRadius="md"
+                        alignItems="center"
+                        justifyContent="space-between"
                     >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <img
+                        <Flex alignItems="center" gap={2}>
+                            <Image
                                 src={settings.logoUrl}
                                 alt={`${settings.title} Logo`}
-                                className="chat-logo"
-                                style={{ width: '24px', height: '24px', borderRadius: '50%' }}
+                                w={6}
+                                h={6}
+                                borderRadius="full"
                             />
-                            <span>{settings.title}</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <Text>{settings.title}</Text>
+                        </Flex>
+                        <Flex gap={2}>
                             {settings.showClearChat && (
-                                <button
+                                <Button
                                     className="clear-button"
                                     onClick={clearChat}
-                                    style={{ background: 'transparent', border: 'none', color: settings.textColor }}
+                                    variant="ghost"
+                                    color="white"
+                                    _hover={{ opacity: 0.8 }}
                                 >
                                     Clear Chat
-                                </button>
+                                </Button>
                             )}
                             {settings.enableLiveChat && isLiveChatAvailable() && (
-                                <button
+                                <Button
                                     className="specialist-button"
                                     onClick={requestSpecialist}
-                                    disabled={isLiveChat || loading}
-                                    style={{
-                                        background: 'transparent',
-                                        border: `1px solid ${settings.textColor}`,
-                                        borderRadius: '4px',
-                                        padding: '4px 8px',
-                                    }}
+                                    isDisabled={isLiveChat || loading}
+                                    variant="outline"
+                                    borderColor="white"
+                                    color="white"
+                                    borderRadius="sm"
+                                    px={2}
+                                    py={1}
                                 >
                                     Chat with Specialist
-                                </button>
+                                </Button>
                             )}
-                            <button
+                            <Button
                                 className="collapse-button"
                                 onClick={toggleCollapse}
-                                style={{ background: 'transparent', border: 'none', color: settings.textColor }}
+                                variant="ghost"
+                                color="white"
                             >
                                 ✕
-                            </button>
-                        </div>
-                    </div>
-                    <div
+                            </Button>
+                        </Flex>
+                    </Flex>
+
+
+                    <Box
                         className="chat-messages"
-                        style={{ padding: '10px', overflowY: 'auto', flex: 1 }}
+                        p={2}
+                        overflowY="auto"
+                        flex={1}
+                        bg="gray.50"
                     >
                         {messages.map((msg, index) => (
-                            <div
+                            <Box
                                 key={index}
                                 className={`message ${msg.sender}`}
-                                style={{
-                                    marginBottom: '12px',
-                                    padding: msg.sender === 'user' ? '8px 12px' : '0', // No outer padding for bot/agent to allow nested backgrounds
-                                    borderRadius: '12px',
-                                    maxWidth: '80%',
-                                    marginLeft: msg.sender === 'user' ? 'auto' : '10px',
-                                    marginRight: msg.sender === 'user' ? '10px' : 'auto',
-                                }}
+                                mb={2}
+                                p={msg.sender === 'user' ? 1 : 0}
+                                borderRadius="md"
+                                maxW="80%"
+                                ml={msg.sender === 'user' ? 2 : 2}
+                                mr={msg.sender === 'user' ? 2 : 'auto'}
+                                bg={msg.sender === 'user' ? 'teal.100' : 'transparent'}
+                                fontSize="14px"
                             >
-                                {(msg.sender === 'bot' || msg.sender === 'agent') && (
-                                    <div
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '6px',
-                                            padding: '6px 12px',
-                                            fontSize: '0.85em',
-                                            fontWeight: '500',
-                                            backgroundColor: `${settings.primaryColor}22`, // Distinct header background
-                                            borderTopLeftRadius: '12px',
-                                            borderTopRightRadius: '12px',
-                                        }}
-                                    >
-                                        <img
-                                            src={settings.logoUrl}
-                                            alt="Bot Logo"
-                                            className="bot-message-logo"
-                                            style={{
-                                                width: '20px',
-                                                height: '20px',
-                                                borderRadius: '50%',
-                                                objectFit: 'cover',
-                                            }}
-                                        />
-                                        <span style={{ color: settings.textColor }}>
-                                            {msg.sender === 'agent' ? 'Specialist' : settings.title}
-                                        </span>
-                                    </div>
-                                )}
-                                <div
-                                    style={{
-                                        padding: '8px 12px',
-                                        width:'94%',
-                                        borderRadius: msg.sender === 'user' ? '12px' : '0 12px 12px 12px', // Adjust radius for bot/agent to connect with header
-                                        // backgroundColor:
-                                        //     msg.sender === 'user'
-                                        //         ? `${settings.primaryColor}33`
-                                        //         : `${settings.backgroundColor}ee`, // Content background
-                                    }}
+                                {/* Header for all messages (bot, agent, or user) */}
+                                <Flex
+                                    alignItems="center"
+                                    gap={1}
+                                    p={1}
+                                    fontSize="12px"
+                                    fontWeight="medium"
+                                    bg={msg.sender === 'user' ? 'teal.100' : msg.sender === 'bot' ? 'blue.100' : 'teal.100'}
+                                    borderTopRadius="md"
                                 >
-                                    {(msg.sender === 'bot' || msg.sender === 'agent') && (
-                                        <hr
-                                            style={{
-                                                border: `0.5px solid ${settings.textColor}33`,
-                                                marginBottom: '8px',
-                                            }}
-                                        />
-                                    )}
-                                    {msg.products ? (
-                                        <div className="product-message">
-                                            {msg.result && (
-                                                <div
-                                                    className="message-text"
-                                                    style={{ marginBottom: '12px', fontWeight: '500' }}
-                                                >
-                                                    {msg.result}
-                                                </div>
-                                            )}
-                                            <table
-                                                className="product-table"
-                                                aria-label="Product list"
-                                                style={{
-                                                    width: '100%',
-                                                    borderCollapse: 'collapse',
-                                                    backgroundColor: `${settings.backgroundColor}ee`, // Match message content background
-                                                }}
-                                            >
-                                                <thead>
-                                                    <tr
-                                                        style={{
-                                                            backgroundColor: `${settings.primaryColor}11`,
-                                                            textAlign: 'left',
-                                                        }}
-                                                    >
-                                                        <th
-                                                            scope="col"
-                                                            style={{ padding: '8px', fontSize: '0.9em' }}
-                                                        >
-                                                            Image
-                                                        </th>
-                                                        <th
-                                                            scope="col"
-                                                            style={{ padding: '8px', fontSize: '0.9em' }}
-                                                        >
-                                                            Name
-                                                        </th>
-                                                        <th
-                                                            scope="col"
-                                                            style={{ padding: '8px', fontSize: '0.9em' }}
-                                                        >
-                                                            Price
-                                                        </th>
-                                                        <th
-                                                            scope="col"
-                                                            style={{ padding: '8px', fontSize: '0.9em' }}
-                                                        >
-                                                            Category
-                                                        </th>
-                                                        {settings.showAddToCart && (
-                                                            <th
-                                                                scope="col"
-                                                                style={{ padding: '8px', fontSize: '0.9em' }}
-                                                            >
-                                                                Action
-                                                            </th>
-                                                        )}
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {msg.products.map((product) => (
-                                                        <tr
-                                                            key={product.id}
-                                                            style={{
-                                                                borderBottom: `1px solid ${settings.textColor}22`,
-                                                            }}
-                                                        >
-                                                            <td style={{ padding: '8px' }}>
-                                                                <img
-                                                                    src={
-                                                                        product.images?.[0]?.image
-                                                                            ? `${marketplaceApiUrl}${product.images[0].image}`
-                                                                            : 'https://via.placeholder.com/150'
-                                                                    }
-                                                                    alt={product.item_name}
-                                                                    className="product-image"
-                                                                    style={{
-                                                                        width: '50px',
-                                                                        height: '50px',
-                                                                        objectFit: 'cover',
-                                                                        borderRadius: '4px',
-                                                                    }}
-                                                                    onError={(e) => {
-                                                                        e.target.src = 'https://via.placeholder.com/150';
-                                                                    }}
-                                                                />
-                                                            </td>
-                                                            <td
-                                                                className="product-name"
-                                                                style={{ padding: '8px' }}
-                                                            >
-                                                                {product.item_name}
-                                                            </td>
-                                                            <td
-                                                                className="product-price"
-                                                                style={{ padding: '8px' }}
-                                                            >
-                                                                ${product.item_price}
-                                                            </td>
-                                                            <td
-                                                                className="product-category"
-                                                                style={{ padding: '8px' }}
-                                                            >
-                                                                {product.item_category_name}
-                                                            </td>
-                                                            {settings.showAddToCart && (
-                                                                <td style={{ padding: '8px' }}>
-                                                                    <button
-                                                                        className="add-to-cart-button"
-                                                                        onClick={() =>
-                                                                            handleAddToCart(
-                                                                                product.id,
-                                                                                product.item_name
-                                                                            )
-                                                                        }
-                                                                        aria-label={`Add ${product.item_name} to cart`}
-                                                                        style={{
-                                                                            backgroundColor: settings.primaryColor,
-                                                                            color: settings.textColor,
-                                                                            padding: '6px 12px',
-                                                                            borderRadius: '4px',
-                                                                            border: 'none',
-                                                                            cursor: 'pointer',
-                                                                        }}
-                                                                    >
-                                                                        Add to Cart
-                                                                    </button>
-                                                                </td>
-                                                            )}
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    ) : msg.order_details ? (
-                                        <div
-                                            className="order-details"
-                                            style={{ padding: '12px', backgroundColor: `${settings.backgroundColor}ee` }}
-                                        >
-                                            <h3 style={{ margin: '0 0 8px' }}>
-                                                Order #{msg.order_details.order_id}
-                                            </h3>
-                                            <p style={{ margin: '4px 0' }}>
-                                                <strong>Status:</strong> {msg.order_details.status}
-                                            </p>
-                                            <p style={{ margin: '4px 0' }}>
-                                                <strong>Total:</strong> ${msg.order_details.total}
-                                            </p>
-                                            <div className="order-items">
-                                                <h4 style={{ margin: '8px 0' }}>Items:</h4>
-                                                <ul style={{ paddingLeft: '20px', margin: '0' }}>
-                                                    {msg.order_details.items.map((item, i) => (
-                                                        <li key={i} style={{ margin: '4px 0' }}>
-                                                            {item.name} - ${item.price} (Qty: {item.quantity})
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        </div>
-                                    ) : msg.order_confirmation ? (
-                                        <div
-                                            className="order-confirmation"
-                                            style={{ padding: '12px', backgroundColor: `${settings.backgroundColor}ee` }}
-                                        >
-                                            <h3 style={{ margin: '0 0 8px' }}>Order Placed Successfully!</h3>
-                                            <p style={{ margin: '4px 0' }}>
-                                                <strong>Order ID:</strong> {msg.order_confirmation.order_id}
-                                            </p>
-                                            <p style={{ margin: '4px 0' }}>
-                                                <strong>Estimated Delivery:</strong>{' '}
-                                                {msg.order_confirmation.estimated_delivery}
-                                            </p>
-                                            <p style={{ margin: '4px 0' }}>Thank you for your order!</p>
-                                        </div>
+                                    {msg.sender === 'user' ? (
+                                        <Text>You</Text>
                                     ) : (
-                                        <div
-                                            className="message-text"
-                                            style={{ color: settings.textColor }}
-                                        >
-                                            {msg.text}
-                                        </div>
+                                        <>
+                                            <Image
+                                                src={settings.logoUrl}
+                                                alt="Bot Logo"
+                                                w={4}
+                                                h={4}
+                                                borderRadius="full"
+                                                objectFit="cover"
+                                            />
+                                            <Text>{msg.sender === 'agent' ? 'Specialist' : settings.title}</Text>
+                                        </>
                                     )}
-                                </div>
-                            </div>
+                                </Flex>
+
+                                <Box
+                                    p={1}
+                                    pl={0} // Start message from left border
+                                    borderRadius={msg.sender === 'user' ? 'md' : '0 md md md'}
+                                    bg={msg.sender === 'user' ? 'transparent' : 'gray.100'}
+                                    w="100%"
+                                >
+                                    {/* HR for all messages */}
+                                    <Box as="hr" borderColor="gray.200" mb={1} />
+                                    {msg.products ? (
+                                        <Box className="product-message">
+                                            {msg.result && (
+                                                <Text mb={2} fontWeight="medium">
+                                                    {msg.result}
+                                                </Text>
+                                            )}
+                                            <Box overflowX="auto">
+                                                <Table.Root
+                                                    className="product-table"
+                                                    aria-label="Product list"
+                                                    bg="gray.50"
+                                                    size="sm"
+                                                >
+                                                    <Table.Header bg="teal.50">
+                                                        <Table.Row>
+                                                            <Table.ColumnHeader p={1} fontSize="12px">
+                                                                Image
+                                                            </Table.ColumnHeader>
+                                                            <Table.ColumnHeader p={1} fontSize="12px">
+                                                                Name
+                                                            </Table.ColumnHeader>
+                                                            <Table.ColumnHeader p={1} fontSize="12px">
+                                                                Price
+                                                            </Table.ColumnHeader>
+                                                            <Table.ColumnHeader p={1} fontSize="12px">
+                                                                Category
+                                                            </Table.ColumnHeader>
+                                                            {settings.showAddToCart && (
+                                                                <Table.ColumnHeader p={1} fontSize="12px">
+                                                                    Action
+                                                                </Table.ColumnHeader>
+                                                            )}
+                                                        </Table.Row>
+                                                    </Table.Header>
+                                                    <Table.Body>
+                                                        <For each={msg.products}>
+                                                            {(product) => (
+                                                                <Table.Row key={product.id} borderBottom="1px solid" borderColor="gray.200">
+                                                                    <Table.Cell p={1}>
+                                                                        <Image
+                                                                            src={
+                                                                                product.images?.[0]?.image
+                                                                                    ? `${marketplaceApiUrl}${product.images[0].image}`
+                                                                                    : 'https://via.placeholder.com/150'
+                                                                            }
+                                                                            alt={product.item_name}
+                                                                            w={10}
+                                                                            h={10}
+                                                                            objectFit="cover"
+                                                                            borderRadius="sm"
+                                                                            onError={(e) => (e.target.src = 'https://via.placeholder.com/150')}
+                                                                        />
+                                                                    </Table.Cell>
+                                                                    <Table.Cell p={1}>{product.item_name}</Table.Cell>
+                                                                    <Table.Cell p={1}>${product.item_price}</Table.Cell>
+                                                                    <Table.Cell p={1}>{product.item_category_name}</Table.Cell>
+                                                                    {settings.showAddToCart && (
+                                                                        <Table.Cell p={1}>
+                                                                            <Button
+                                                                                className="add-to-cart-button"
+                                                                                onClick={() => handleAddToCart(product.id, product.item_name)}
+                                                                                aria-label={`Add ${product.item_name} to cart`}
+                                                                                bg="teal.500"
+                                                                                color="white"
+                                                                                px={2}
+                                                                                py={1}
+                                                                                borderRadius="sm"
+                                                                                fontSize="12px"
+                                                                            >
+                                                                                Add to Cart
+                                                                            </Button>
+                                                                        </Table.Cell>
+                                                                    )}
+                                                                </Table.Row>
+                                                            )}
+                                                        </For>
+                                                    </Table.Body>
+                                                </Table.Root>
+                                            </Box>
+                                        </Box>
+                                    ) : msg.order_details ? (
+                                        <Box
+                                            className="order-details"
+                                            p={2}
+                                            bg="gray.100"
+                                        >
+                                            <Text fontSize="14px" mb={1}>
+                                                Order #{msg.order_details.order_id}
+                                            </Text>
+                                            <Text mb={1}>
+                                                <strong>Status:</strong> {msg.order_details.status}
+                                            </Text>
+                                            <Text mb={1}>
+                                                <strong>Total:</strong> ${msg.order_details.total}
+                                            </Text>
+                                            <Box>
+                                                <Text fontSize="12px" mb={1}>Items:</Text>
+                                                <Box as="ul" pl={4} m={0}>
+                                                    {msg.order_details.items.map((item, i) => (
+                                                        <Box as="li" key={i} mb={1}>
+                                                            {item.name} - ${item.price} (Qty: {item.quantity})
+                                                        </Box>
+                                                    ))}
+                                                </Box>
+                                            </Box>
+                                        </Box>
+                                    ) : msg.order_confirmation ? (
+                                        <Box
+                                            className="order-confirmation"
+                                            p={2}
+                                            bg="gray.100"
+                                        >
+                                            <Text fontSize="14px" mb={1}>Order Placed Successfully!</Text>
+                                            <Text mb={1}>
+                                                <strong>Order ID:</strong> {msg.order_confirmation.order_id}
+                                            </Text>
+                                            <Text mb={1}>
+                                                <strong>Estimated Delivery:</strong> {msg.order_confirmation.estimated_delivery}
+                                            </Text>
+                                            <Text mb={1}>Thank you for your order!</Text>
+                                        </Box>
+                                    ) : (
+                                        <Text className="message-text">{msg.text}</Text>
+                                    )}
+                                </Box>
+                            </Box>
                         ))}
                         {loading && (
-                            <div
+                            <Flex
                                 className="message bot loading"
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    padding: '8px 12px',
-                                    borderRadius: '12px',
-                                    backgroundColor: `${settings.backgroundColor}ee`,
-                                    margin: '10px',
-                                }}
+                                alignItems="center"
+                                gap={1}
+                                p={1}
+                                borderRadius="md"
+                                bg="gray.100"
+                                m={2}
                             >
-                                <img
+                                <Image
                                     src={settings.logoUrl}
                                     alt="Bot Logo"
-                                    className="bot-message-logo"
-                                    style={{ width: '20px', height: '20px', borderRadius: '50%' }}
+                                    w={4}
+                                    h={4}
+                                    borderRadius="full"
                                 />
-                                <span className="loading-spinner"></span> Loading...
-                            </div>
+                                <Text>Loading...</Text>
+                            </Flex>
                         )}
-                    </div>
-                    <div
+                    </Box>      <Flex
                         className="chat-input"
-                        style={{
-                            padding: '10px',
-                            borderTop: `1px solid ${settings.textColor}22`,
-                            display: 'flex',
-                            gap: '8px',
-                        }}
+                        p={3}
+                        borderTop="1px solid"
+                        borderColor="gray.200"
+                        gap={2}
                     >
-                        <input
+                        <Input
                             type="text"
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             placeholder="Type your query (e.g., cheapest Sony headphones, order status, place order)"
                             onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                            disabled={loading}
-                            style={{
-                                flex: 1,
-                                padding: '8px',
-                                borderRadius: '4px',
-                                border: `1px solid ${settings.textColor}33`,
-                                color: settings.textColor,
-                                backgroundColor: settings.backgroundColor,
-                            }}
+                            isDisabled={loading}
+                            flex={1}
+                            p={2}
+                            borderRadius="sm"
+                            borderColor="gray.300"
+                            bg="white"
+                            color="gray.800"
                         />
-                        <button
+                        <Button
                             onClick={sendMessage}
-                            disabled={loading}
-                            style={{
-                                backgroundColor: settings.primaryColor,
-                                color: settings.textColor,
-                                padding: '8px 16px',
-                                borderRadius: '4px',
-                                border: 'none',
-                                cursor: loading ? 'not-allowed' : 'pointer',
-                            }}
+                            isDisabled={loading}
+                            bg="teal.500"
+                            color="white"
+                            px={4}
+                            py={2}
+                            borderRadius="sm"
                         >
                             {loading ? 'Sending...' : 'Send'}
-                        </button>
-                    </div>
-                    <div
+                        </Button>
+                    </Flex>
+                    <Box
                         className="ready-questions"
-                        style={{ padding: '10px', borderTop: `1px solid ${settings.textColor}22` }}
+                        p={3}
+                        borderTop="1px solid"
+                        borderColor="gray.200"
                     >
-                        <p style={{ margin: '0 0 8px', fontSize: '0.9em' }}>Try these questions:</p>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        <Text mb={2} fontSize="sm">Try these questions:</Text>
+                        <Flex flexWrap="wrap" gap={2}>
                             {settings.readyQuestions.map((question, index) => (
-                                <button
+                                <Button
                                     key={index}
                                     className="ready-question-button"
                                     onClick={() => {
                                         setInput(question.query);
                                         sendMessage();
                                     }}
-                                    disabled={loading}
-                                    style={{
-                                        backgroundColor: `${settings.primaryColor}33`,
-                                        color: settings.textColor,
-                                        padding: '6px 12px',
-                                        borderRadius: '4px',
-                                        border: 'none',
-                                        cursor: loading ? 'not-allowed' : 'pointer',
-                                        fontSize: '0.9em',
-                                    }}
+                                    isDisabled={loading}
+                                    bg="teal.100"
+                                    color="gray.800"
+                                    px={3}
+                                    py={2}
+                                    borderRadius="sm"
+                                    fontSize="sm"
                                 >
                                     {question.label}
-                                </button>
+                                </Button>
                             ))}
-                        </div>
-                    </div>
-                    <div
+                        </Flex>
+                    </Box>
+                    <Box
                         className="resize-handle"
                         ref={resizeRef}
-                        style={{
-                            position: 'absolute',
-                            bottom: '0',
-                            right: '0',
-                            width: '15px',
-                            height: '15px',
-                            backgroundColor: settings.primaryColor,
-                            cursor: 'se-resize',
-                        }}
-                    ></div>
-                </div>
+                        position="absolute"
+                        bottom={0}
+                        right={0}
+                        w={4}
+                        h={4}
+                        bg="teal.500"
+                        cursor="se-resize"
+                    />
+                </Box>
             )}
         </div>
     );
