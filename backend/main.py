@@ -70,6 +70,19 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import spacy
 from transformers import pipeline
+import os
+from huggingface_hub import login  # For Llama access
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Login for gated models (e.g., Llama) - set your HF token
+hf_token = os.getenv("HF_TOKEN")  # Set this env var with your token
+if hf_token:
+    login(hf_token)
+else:
+    print("Warning: HF_TOKEN not set; Llama fallback may fail.")
 
 nlp = spacy.load("en_core_web_sm")  # Should now load without error
 classifier = pipeline("text-classification", model="multi_intent_model", tokenizer="multi_intent_model")
